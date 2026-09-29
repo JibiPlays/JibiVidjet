@@ -1,18 +1,151 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate"><meta http-equiv="Pragma" content="no-cache"><meta http-equiv="Expires" content="0"><title>JibiVidjet</title><link rel="stylesheet" href="styles/main.css?v=20260929-2"></head><body><div class="scene" id="scene"><div class="ground"></div><div class="chat-layer" id="chatLayer"></div></div><script type="module">
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>JibiVidjet</title>
+<link rel="stylesheet" href="styles/main.css?v=20260929-3">
+</head>
+<body>
+<div class="scene" id="scene">
+  <div class="ground"></div>
+</div>
+
+<script type="module">
 import {loadState,saveState} from './src/state.js';
 import {createViewer,moveViewers,randomizeVelocity} from './src/movement.js';
-import {renderViewer,renderViewers} from './src/viewers.js';
-let state=loadState();
-const initialViewers=[['viewer-1','Зритель 1',22,30],['viewer-2','Зритель 2',50,48],['viewer-3','Зритель 3',78,30],['viewer-4','Зритель 4',30,72],['viewer-5','Зритель 5',70,72]];
-for(const [id,name,x,y] of initialViewers){if(!state.viewers[id])state.viewers[id]=createViewer(id,name,x,y);else if(!state.viewers[id].type)state.viewers[id].type=Math.floor(Math.random()*5)+1}
-function addChatMessage(user,text){state.messages.push({id:crypto.randomUUID(),user:String(user),text:String(text),createdAt:Date.now()});if(state.messages.length>20)state.messages.shift();saveState(state);renderMessages()}
-function renderMessages(){const layer=document.getElementById('chatLayer');layer.replaceChildren();for(const m of state.messages){const row=document.createElement('div');row.className='chat-message';const name=document.createElement('span');name.className='chat-name';name.textContent=m.user+':';const text=document.createElement('span');text.textContent=m.text;row.append(name,text);layer.appendChild(row)}}
-if(state.messages.length===0){addChatMessage('Jibi','Тестовое сообщение из чата');addChatMessage('Зритель','Проверяем сохранение состояния')}
-for(const v of Object.values(state.viewers)){if(!Number.isFinite(v.vx)||!Number.isFinite(v.vy)||!Number.isFinite(v.nextTurn))randomizeVelocity(v)}
-renderViewers(state.viewers);renderMessages();
-let last=Date.now(),lastSave=0;
-function animate(){const now=Date.now(),dt=Math.min(.05,(now-last)/1000);last=now;moveViewers(state.viewers,dt,now);for(const v of Object.values(state.viewers))renderViewer(v);if(now-lastSave>250){saveState(state);lastSave=now}requestAnimationFrame(animate)}requestAnimationFrame(animate);window.addEventListener('pagehide',()=>saveState(state));window.addEventListener('beforeunload',()=>saveState(state));window.JibiVidjet={addChatMessage,getState:()=>JSON.parse(JSON.stringify(state))};
+import {renderViewer,renderViewers,removeViewerElement} from './src/viewers.js';
+import {connectStreamerBot} from './src/twitch.js';
+
+const state=loadState();
+const MAX_VIEWERS=28;
+const INACTIVE_MS=10*60*1000;
+
+function normalizeName(data){
+  return String(data?.user?.name||data?.user?.login||'').trim();
+}
+function normalizeLogin(data){
+  return String(data?.user?.login||data?.user?.name||'').trim().toLowerCase();
+}
+function addChatViewer(data){
+  const name=normalizeName(data);
+  const login=normalizeLogin(data);
+  if(!name||!login)return;
+
+  const id='chat-'+login.replace(/[^a-z0-9_-]/g,'_');
+  let v=state.viewers[id];
+
+  if(!v){
+    const usedColors=new Set(Object.values(state.viewers).map(x=>x.color).filter(Boolean));
+    const color=pickViewerColor(usedColors,Object.keys(state.viewers).length);
+    v=createViewer(id,name,randomX(),95);
+    v.chatUser=true;
+    v.login=login;
+    v.displayName=name;
+    v.color=color;
+    v.variant=Math.abs(hash(login))%8;
+    v.lastSeen=Date.now();
+    v.messageCount=0;
+    state.viewers[id]=v;
+  }else{
+    v.name=name;
+    v.displayName=name;
+    v.lastSeen=Date.now();
+    v.messageCount=(v.messageCount||0)+1;
+  }
+
+  v.lastMessage=String(data?.text||'');
+  v.lastSeen=Date.now();
+  v.vx=(Math.random()<.5?-1:1)*Math.max(4,Math.abs(v.vx||5));
+  v.nextTurn=Date.now()+700+Math.random()*2200;
+
+  enforceViewerLimit();
+  saveState(state);
+  renderViewer(v);
+}
+
+function randomX(){
+  return 10+Math.random()*80;
+}
+function hash(text){
+  let h=2166136261;
+  for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);
+  return h>>>0;
+}
+function pickViewerColor(used,index){
+  const colors=['#ff5f6d','#ff9f43','#f6c945','#35c98b','#38a8ff','#8b6cff','#d85cff','#ff5db1','#00c2a8','#e85d04','#7bd23c','#5c7cfa'];
+  for(let i=0;i<colors.length;i++){
+    const c=colors[(index+i)%colors.length];
+    if(!used.has(c))return c;
+  }
+  return 'hsl('+((index*137.508)%360)+' 78% 58%)';
+}
+function enforceViewerLimit(){
+  const entries=Object.entries(state.viewers);
+  const now=Date.now();
+  for(const [id,v] of entries){
+    if(v.chatUser && now-(v.lastSeen||0)>INACTIVE_MS){
+      delete state.viewers[id];
+      removeViewerElement(id);
+    }
+  }
+  const current=Object.entries(state.viewers);
+  if(current.length<=MAX_VIEWERS)return;
+  current.sort((a,b)=>(a[1].lastSeen||0)-(b[1].lastSeen||0));
+  while(current.length>MAX_VIEWERS){
+    const [id]=current.shift();
+    delete state.viewers[id];
+    removeViewerElement(id);
+  }
+}
+
+for(const v of Object.values(state.viewers)){
+  if(!v.chatUser){delete state.viewers[v.id];removeViewerElement(v.id);continue}
+  if(!Number.isFinite(v.vx)||!Number.isFinite(v.nextTurn))randomizeVelocity(v);
+  if(!v.variant&&v.variant!==0)v.variant=Math.abs(hash(v.login||v.id))%8;
+}
+enforceViewerLimit();
+renderViewers(state.viewers);
+
+connectStreamerBot({
+  host:'127.0.0.1',
+  port:8080,
+  onChatMessage:addChatViewer
+});
+
+let last=Date.now(),lastSave=0,lastCleanup=0;
+function animate(){
+  const now=Date.now();
+  const dt=Math.min(.05,(now-last)/1000);
+  last=now;
+  moveViewers(state.viewers,dt,now);
+  for(const v of Object.values(state.viewers))renderViewer(v);
+  if(now-lastCleanup>15000){enforceViewerLimit();lastCleanup=now}
+  if(now-lastSave>250){saveState(state);lastSave=now}
+  requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+window.addEventListener('pagehide',()=>saveState(state));
+window.addEventListener('beforeunload',()=>saveState(state));
+window.JibiVidjet={getState:()=>JSON.parse(JSON.stringify(state)),addChatMessage:addChatViewer};
+
 let currentVersion=null;
-async function checkForUpdate(){try{const stamp=Date.now();const files=['index.html','styles/main.css','src/state.js','src/movement.js','src/viewers.js'];const responses=await Promise.all(files.map(path=>fetch(path+'?update='+stamp,{cache:'no-store',headers:{'Cache-Control':'no-cache'}}).then(r=>{if(!r.ok)throw new Error('update check failed: '+path);return r.text()})));const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(responses.join('\n/* JibiVidjet file boundary */\n')));const hash=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');if(currentVersion===null)currentVersion=hash;else if(hash!==currentVersion){saveState(state);location.replace(location.pathname+'?update='+hash)}}catch(e){}}
-checkForUpdate();setInterval(checkForUpdate,3000);
-</script></body></html>
+async function checkForUpdate(){
+  try{
+    const stamp=Date.now();
+    const files=['index.html','styles/main.css','src/state.js','src/movement.js','src/viewers.js','src/twitch.js'];
+    const responses=await Promise.all(files.map(path=>fetch(path+'?update='+stamp,{cache:'no-store',headers:{'Cache-Control':'no-cache'}}).then(r=>{if(!r.ok)throw new Error('update check failed: '+path);return r.text()})));
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(responses.join('\n/* JibiVidjet file boundary */\n')));
+    const hashValue=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    if(currentVersion===null)currentVersion=hashValue;
+    else if(hashValue!==currentVersion){saveState(state);location.replace(location.pathname+'?update='+hashValue)}
+  }catch(e){}
+}
+checkForUpdate();
+setInterval(checkForUpdate,3000);
+</script>
+</body>
+</html>
