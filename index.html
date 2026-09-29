@@ -7,7 +7,7 @@
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
 .scene{position:relative;width:100%;height:100%}
-.person{position:absolute;left:50%;top:50%;width:220px;height:300px;transform:translate(-50%,-50%)}
+.person{position:absolute;left:50%;top:50%;width:220px;height:300px;transform:translate(-50%,-50%);will-change:left,top}
 .head{position:absolute;left:60px;top:0;width:100px;height:100px;border-radius:50%;background:#00e5ff;border:5px solid #111}
 .body{position:absolute;left:75px;top:112px;width:70px;height:95px;border-radius:18px;background:#9c27b0;border:5px solid #111}
 .arm{position:absolute;top:120px;width:25px;height:95px;border-radius:14px;background:#00e5ff;border:5px solid #111}
@@ -36,8 +36,8 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
   <div class="chat-layer" id="chatLayer"></div>
 </div>
 <script>
-const STATE_KEY = 'JibiVidjet.state.v1';
-const defaultState = {version:1,person:{x:50,y:50},viewers:{},messages:[]};
+const STATE_KEY='JibiVidjet.state.v1';
+const defaultState={version:1,person:{x:50,y:50},viewers:{},messages:[]};
 
 function loadState(){
   try{
@@ -49,13 +49,18 @@ function loadState(){
 }
 
 let state=loadState();
+let saveTimer=null;
 function saveState(){try{localStorage.setItem(STATE_KEY,JSON.stringify(state))}catch(e){}}
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(saveState,120);
+}
 function clamp(value,min,max){return Math.max(min,Math.min(max,Number(value)||0))}
-function setPersonPosition(x,y){
+function setPersonPosition(x,y,save=true){
   state.person.x=clamp(x,5,95);
   state.person.y=clamp(y,5,95);
   renderPerson();
-  saveState();
+  if(save)scheduleSave();
 }
 function renderPerson(){
   const person=document.getElementById('person');
@@ -90,24 +95,45 @@ if(state.messages.length===0){
   addChatMessage('Зритель','Проверяем сохранение состояния');
 }
 
-// Автотест: фигурка сама ходит по нескольким точкам и сохраняет каждую позицию.
-// После перезагрузки она продолжит с последней сохранённой позиции.
+// Плавный автотест: движение между точками занимает 4 секунды.
+// Координата текущего кадра сохраняется с небольшой задержкой, поэтому
+// даже автоматическое обновление страницы должно восстановить последнее место.
 const testPath=[
   {x:25,y:30},{x:75,y:30},{x:75,y:70},{x:25,y:70},{x:50,y:50}
 ];
 let testIndex=0;
-function runMovementTest(){
-  const target=testPath[testIndex];
-  setPersonPosition(target.x,target.y);
+let movement={from:{x:state.person.x,y:state.person.y},to:testPath[0],started:performance.now(),duration:4000};
+
+function startNextMove(now){
+  movement={
+    from:{x:state.person.x,y:state.person.y},
+    to:testPath[testIndex],
+    started:now,
+    duration:4000
+  };
   testIndex=(testIndex+1)%testPath.length;
 }
-render();
-runMovementTest();
-setInterval(runMovementTest,3000);
 
-// API для следующего этапа: реальный Twitch-чат и отдельные зрители.
+function animate(now){
+  const progress=Math.min(1,(now-movement.started)/movement.duration);
+  const eased=progress<.5 ? 2*progress*progress : 1-Math.pow(-2*progress+2,2)/2;
+  const x=movement.from.x+(movement.to.x-movement.from.x)*eased;
+  const y=movement.from.y+(movement.to.y-movement.from.y)*eased;
+  setPersonPosition(x,y,false);
+  scheduleSave();
+  if(progress>=1)startNextMove(now);
+  requestAnimationFrame(animate);
+}
+
+render();
+startNextMove(performance.now());
+requestAnimationFrame(animate);
+
+window.addEventListener('pagehide',saveState);
+window.addEventListener('beforeunload',saveState);
+
 window.JibiVidjet={
-  setPersonPosition,
+  setPersonPosition:(x,y)=>setPersonPosition(x,y,true),
   addChatMessage,
   getState:()=>JSON.parse(JSON.stringify(state))
 };
