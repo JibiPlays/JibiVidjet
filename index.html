@@ -31,5 +31,27 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
     <div class="leg right"></div>
   </div>
 </div>
+<script>
+// Проверяем GitHub Pages каждые 5 секунд. Если index.html изменился,
+// перезагружаем страницу только тогда, сохраняя состояние overlay между проверками.
+let currentVersion = null;
+async function checkForUpdate(){
+  try{
+    const response = await fetch('index.html?check=' + Date.now(), {cache:'no-store'});
+    const text = await response.text();
+    const version = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    const hash = Array.from(new Uint8Array(version)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    if(currentVersion === null){
+      currentVersion = hash;
+    }else if(hash !== currentVersion){
+      location.reload();
+    }
+  }catch(e){
+    // Временная ошибка сети не влияет на уже отображаемый overlay.
+  }
+}
+checkForUpdate();
+setInterval(checkForUpdate, 5000);
+</script>
 </body>
 </html>
