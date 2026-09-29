@@ -1,3 +1,3 @@
 export function ensureViewerElement(v){let el=document.getElementById('viewer-'+v.id);if(el)return el;el=document.createElement('div');el.className='person type'+v.type;el.id='viewer-'+v.id;el.innerHTML='<div class="avatar"><div class="aura"></div><div class="head"><div class="eye left"></div><div class="eye right"></div></div><div class="body"></div><div class="arm left"></div><div class="arm right"></div><div class="leg left"></div><div class="leg right"></div></div>';document.getElementById('scene').appendChild(el);return el}
-export function renderViewer(v){const el=ensureViewerElement(v);el.style.left=v.x+'%';el.style.top=v.y+'%'}
+export function renderViewer(v){const el=ensureViewerElement(v);el.style.left=v.x+'%';el.style.top='auto';el.style.bottom='8%'}
 export function renderViewers(viewers){Object.values(viewers).forEach(renderViewer)}
