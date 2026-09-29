@@ -7,7 +7,7 @@
 <style>
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
 .scene{position:relative;width:100%;height:100%}
-.person{position:absolute;left:50%;top:50%;width:220px;height:300px;transform:translate(-50%,-50%);will-change:left,top}
+.person{position:absolute;width:220px;height:300px;transform:translate(-50%,-50%)}
 .head{position:absolute;left:60px;top:0;width:100px;height:100px;border-radius:50%;background:#00e5ff;border:5px solid #111}
 .body{position:absolute;left:75px;top:112px;width:70px;height:95px;border-radius:18px;background:#9c27b0;border:5px solid #111}
 .arm{position:absolute;top:120px;width:25px;height:95px;border-radius:14px;background:#00e5ff;border:5px solid #111}
@@ -24,133 +24,113 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 </style>
 </head>
 <body>
-<div class="scene">
-  <div class="person" id="person">
-    <div class="head"><div class="eye left"></div><div class="eye right"></div></div>
-    <div class="body"></div>
-    <div class="arm left"></div>
-    <div class="arm right"></div>
-    <div class="leg left"></div>
-    <div class="leg right"></div>
-  </div>
-  <div class="chat-layer" id="chatLayer"></div>
-</div>
+<div class="scene" id="scene"><div class="chat-layer" id="chatLayer"></div></div>
 <script>
 const STATE_KEY='JibiVidjet.state.v1';
-const defaultState={version:1,person:{x:50,y:50},viewers:{},messages:[]};
-
+const defaultState={version:2,viewers:{},messages:[]};
 function loadState(){
   try{
     const saved=localStorage.getItem(STATE_KEY);
     if(!saved)return structuredClone(defaultState);
     const parsed=JSON.parse(saved);
-    return {...defaultState,...parsed,person:{...defaultState.person,...(parsed.person||{})},viewers:parsed.viewers||{},messages:Array.isArray(parsed.messages)?parsed.messages:[]};
+    return {...defaultState,...parsed,viewers:parsed.viewers||{},messages:Array.isArray(parsed.messages)?parsed.messages:[]};
   }catch(e){return structuredClone(defaultState)}
 }
-
 let state=loadState();
-let saveTimer=null;
 function saveState(){try{localStorage.setItem(STATE_KEY,JSON.stringify(state))}catch(e){}}
-function scheduleSave(){
-  clearTimeout(saveTimer);
-  saveTimer=setTimeout(saveState,120);
+function clamp(v,min,max){return Math.max(min,Math.min(max,Number(v)||0))}
+function createViewer(id,name,x,y){
+  state.viewers[id]={id,name,x:clamp(x,8,92),y:clamp(y,10,82),tx:clamp(x,8,92),ty:clamp(y,10,82)};
 }
-function clamp(value,min,max){return Math.max(min,Math.min(max,Number(value)||0))}
-function setPersonPosition(x,y,save=true){
-  state.person.x=clamp(x,5,95);
-  state.person.y=clamp(y,5,95);
-  renderPerson();
-  if(save)scheduleSave();
+const initialViewers=[
+  ['viewer-1','Зритель 1',22,30],
+  ['viewer-2','Зритель 2',50,48],
+  ['viewer-3','Зритель 3',78,30],
+  ['viewer-4','Зритель 4',30,72],
+  ['viewer-5','Зритель 5',70,72]
+];
+for(const [id,name,x,y] of initialViewers){if(!state.viewers[id])createViewer(id,name,x,y)}
+function ensureViewerElement(viewer){
+  let el=document.getElementById('viewer-'+viewer.id);
+  if(el)return el;
+  el=document.createElement('div');
+  el.className='person';
+  el.id='viewer-'+viewer.id;
+  el.innerHTML='<div class="head"><div class="eye left"></div><div class="eye right"></div></div><div class="body"></div><div class="arm left"></div><div class="arm right"></div><div class="leg left"></div><div class="leg right"></div>';
+  document.getElementById('scene').appendChild(el);
+  return el;
 }
-function renderPerson(){
-  const person=document.getElementById('person');
-  person.style.left=state.person.x+'%';
-  person.style.top=state.person.y+'%';
+function renderViewer(viewer){
+  const el=ensureViewerElement(viewer);
+  el.style.left=viewer.x+'%';
+  el.style.top=viewer.y+'%';
+}
+function renderViewers(){Object.values(state.viewers).forEach(renderViewer)}
+function addChatMessage(user,text){
+  state.messages.push({id:crypto.randomUUID(),user:String(user),text:String(text),createdAt:Date.now()});
+  if(state.messages.length>20)state.messages.shift();
+  saveState();renderMessages();
 }
 function renderMessages(){
   const layer=document.getElementById('chatLayer');
   layer.replaceChildren();
   for(const message of state.messages){
-    const row=document.createElement('div');
-    row.className='chat-message';
-    const name=document.createElement('span');
-    name.className='chat-name';
-    name.textContent=message.user+':';
-    const text=document.createElement('span');
-    text.textContent=message.text;
-    row.append(name,text);
-    layer.appendChild(row);
+    const row=document.createElement('div');row.className='chat-message';
+    const name=document.createElement('span');name.className='chat-name';name.textContent=message.user+':';
+    const text=document.createElement('span');text.textContent=message.text;
+    row.append(name,text);layer.appendChild(row);
   }
 }
-function addChatMessage(user,text){
-  state.messages.push({id:crypto.randomUUID(),user:String(user),text:String(text),createdAt:Date.now()});
-  if(state.messages.length>20)state.messages.shift();
-  saveState();
-  renderMessages();
-}
-function render(){renderPerson();renderMessages()}
-
 if(state.messages.length===0){
   addChatMessage('Jibi','Тестовое сообщение из чата');
   addChatMessage('Зритель','Проверяем сохранение состояния');
 }
-
-// Плавный автотест: движение между точками занимает 4 секунды.
-// Координата текущего кадра сохраняется с небольшой задержкой, поэтому
-// даже автоматическое обновление страницы должно восстановить последнее место.
-const testPath=[
-  {x:25,y:30},{x:75,y:30},{x:75,y:70},{x:25,y:70},{x:50,y:50}
+renderViewers();renderMessages();
+const targets=[
+  {x:15,y:25},{x:85,y:25},{x:85,y:75},{x:15,y:75},{x:50,y:50}
 ];
-let testIndex=0;
-let movement={from:{x:state.person.x,y:state.person.y},to:testPath[0],started:performance.now(),duration:4000};
-
-function startNextMove(now){
-  movement={
-    from:{x:state.person.x,y:state.person.y},
-    to:testPath[testIndex],
-    started:now,
-    duration:4000
-  };
-  testIndex=(testIndex+1)%testPath.length;
+function chooseNextTarget(viewer,index){
+  const t=targets[(index+viewer.id.length)%targets.length];
+  viewer.tx=t.x;viewer.ty=t.y;
 }
-
+let last=performance.now();
+let targetTimer=0;
 function animate(now){
-  const progress=Math.min(1,(now-movement.started)/movement.duration);
-  const eased=progress<.5 ? 2*progress*progress : 1-Math.pow(-2*progress+2,2)/2;
-  const x=movement.from.x+(movement.to.x-movement.from.x)*eased;
-  const y=movement.from.y+(movement.to.y-movement.from.y)*eased;
-  setPersonPosition(x,y,false);
-  scheduleSave();
-  if(progress>=1)startNextMove(now);
+  const dt=Math.min(0.05,(now-last)/1000);last=now;targetTimer+=dt;
+  if(targetTimer>=4){
+    targetTimer=0;
+    Object.values(state.viewers).forEach((viewer,index)=>chooseNextTarget(viewer,index));
+  }
+  for(const viewer of Object.values(state.viewers)){
+    const speed=12;
+    const dx=viewer.tx-viewer.x,dy=viewer.ty-viewer.y;
+    const dist=Math.hypot(dx,dy);
+    if(dist>0.01){
+      const step=Math.min(dist,speed*dt);
+      viewer.x+=dx/dist*step;viewer.y+=dy/dist*step;
+      renderViewer(viewer);
+    }
+  }
   requestAnimationFrame(animate);
 }
-
-render();
-startNextMove(performance.now());
 requestAnimationFrame(animate);
-
+let saveTimer=0;
+setInterval(()=>{saveState()},1000);
 window.addEventListener('pagehide',saveState);
 window.addEventListener('beforeunload',saveState);
-
-window.JibiVidjet={
-  setPersonPosition:(x,y)=>setPersonPosition(x,y,true),
-  addChatMessage,
-  getState:()=>JSON.parse(JSON.stringify(state))
-};
-
+window.JibiVidjet={addChatMessage,getState:()=>JSON.parse(JSON.stringify(state))};
 let currentVersion=null;
 async function checkForUpdate(){
   try{
     const response=await fetch('index.html?check='+Date.now(),{cache:'no-store'});
     const text=await response.text();
-    const version=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
-    const hash=Array.from(new Uint8Array(version)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+    const hash=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');
     if(currentVersion===null)currentVersion=hash;
     else if(hash!==currentVersion){saveState();location.reload()}
   }catch(e){}
 }
-checkForUpdate();
-setInterval(checkForUpdate,5000);
+checkForUpdate();setInterval(checkForUpdate,5000);
 </script>
 </body>
 </html>
