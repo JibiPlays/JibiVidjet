@@ -24,18 +24,14 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 <body>
 <div class="scene" id="scene"><div class="chat-layer" id="chatLayer"></div></div>
 <script>
-const STATE_KEY='JibiVidjet.state.v3';
-const defaultState={version:4,viewers:{},messages:[]};
-function loadState(){
-  try{const saved=localStorage.getItem(STATE_KEY);if(!saved)return structuredClone(defaultState);const p=JSON.parse(saved);return {...defaultState,...p,viewers:p.viewers||{},messages:Array.isArray(p.messages)?p.messages:[]}}
-  catch(e){return structuredClone(defaultState)}
-}
+const STATE_KEY='JibiVidjet.state.v4';
+const defaultState={version:5,viewers:{},messages:[]};
+function loadState(){try{const saved=localStorage.getItem(STATE_KEY);if(!saved)return structuredClone(defaultState);const p=JSON.parse(saved);return {...defaultState,...p,viewers:p.viewers||{},messages:Array.isArray(p.messages)?p.messages:[]}}catch(e){return structuredClone(defaultState)}}
 let state=loadState();
 function saveState(){try{localStorage.setItem(STATE_KEY,JSON.stringify(state))}catch(e){}}
 function clamp(v,min,max){return Math.max(min,Math.min(max,Number(v)||0))}
-function createViewer(id,name,x,y){
-  state.viewers[id]={id,name,x:clamp(x,8,92),y:clamp(y,10,82),sx:clamp(x,8,92),sy:clamp(y,10,82),tx:clamp(x,8,92),ty:clamp(y,10,82),moveStarted:Date.now(),moveDuration:randomDuration()}
-}
+function randomRange(min,max){return min+Math.random()*(max-min)}
+function createViewer(id,name,x,y){state.viewers[id]={id,name,x:clamp(x,8,92),y:clamp(y,10,82),vx:randomRange(-7,7),vy:randomRange(-5,5),nextTurn:Date.now()+randomRange(700,2200)}}
 const initialViewers=[['viewer-1','Зритель 1',22,30],['viewer-2','Зритель 2',50,48],['viewer-3','Зритель 3',78,30],['viewer-4','Зритель 4',30,72],['viewer-5','Зритель 5',70,72]];
 for(const [id,name,x,y] of initialViewers){if(!state.viewers[id])createViewer(id,name,x,y)}
 function ensureViewerElement(v){let el=document.getElementById('viewer-'+v.id);if(el)return el;el=document.createElement('div');el.className='person';el.id='viewer-'+v.id;el.innerHTML='<div class="head"><div class="eye left"></div><div class="eye right"></div></div><div class="body"></div><div class="arm left"></div><div class="arm right"></div><div class="leg left"></div><div class="leg right"></div>';document.getElementById('scene').appendChild(el);return el}
@@ -44,42 +40,30 @@ function renderViewers(){Object.values(state.viewers).forEach(renderViewer)}
 function addChatMessage(user,text){state.messages.push({id:crypto.randomUUID(),user:String(user),text:String(text),createdAt:Date.now()});if(state.messages.length>20)state.messages.shift();saveState();renderMessages()}
 function renderMessages(){const layer=document.getElementById('chatLayer');layer.replaceChildren();for(const m of state.messages){const row=document.createElement('div');row.className='chat-message';const name=document.createElement('span');name.className='chat-name';name.textContent=m.user+':';const text=document.createElement('span');text.textContent=m.text;row.append(name,text);layer.appendChild(row)}}
 if(state.messages.length===0){addChatMessage('Jibi','Тестовое сообщение из чата');addChatMessage('Зритель','Проверяем сохранение состояния')}
-function randomDuration(){return 1800+Math.random()*4200}
-const targets=[{x:12,y:18},{x:30,y:38},{x:52,y:18},{x:75,y:28},{x:88,y:50},{x:68,y:72},{x:42,y:80},{x:18,y:68},{x:50,y:50},{x:82,y:82}];
-function randomTarget(){return targets[Math.floor(Math.random()*targets.length)]}
-function startMove(v,forceDifferent=false){
-  let t=randomTarget();
-  if(forceDifferent){for(let i=0;i<8 && Math.hypot(t.x-v.x,t.y-v.y)<12;i++)t=randomTarget()}
-  v.sx=v.x;v.sy=v.y;v.tx=t.x;v.ty=t.y;v.moveStarted=Date.now();v.moveDuration=randomDuration()
+function randomizeVelocity(v){
+  const speed=randomRange(4,11),angle=Math.random()*Math.PI*2;
+  v.vx=Math.cos(angle)*speed;v.vy=Math.sin(angle)*speed;
+  v.nextTurn=Date.now()+randomRange(700,2600);
 }
-const now=Date.now();
-let viewerIndex=0;
 for(const v of Object.values(state.viewers)){
-  if(!Number.isFinite(v.sx)||!Number.isFinite(v.sy)||!Number.isFinite(v.tx)||!Number.isFinite(v.ty)||!Number.isFinite(v.moveStarted)||!Number.isFinite(v.moveDuration)){
-    startMove(v,true)
-  }else{
-    v.sx=v.x;v.sy=v.y;
-    v.moveStarted=now-(viewerIndex*700);
-    v.moveDuration=Math.max(1200,Number(v.moveDuration)||randomDuration());
-    const uniqueTarget=targets[(viewerIndex*2+3)%targets.length];
-    v.tx=uniqueTarget.x;v.ty=uniqueTarget.y;
-  }
-  viewerIndex++
+  if(!Number.isFinite(v.vx)||!Number.isFinite(v.vy)||!Number.isFinite(v.nextTurn))randomizeVelocity(v)
+  else {v.nextTurn=Date.now()+randomRange(300,1800)}
 }
 renderViewers();renderMessages();
+let last=Date.now();
 function animate(){
-  const now=Date.now();
+  const now=Date.now(),dt=Math.min(.05,(now-last)/1000);last=now;
   for(const v of Object.values(state.viewers)){
-    const elapsed=now-v.moveStarted;
-    const p=Math.min(1,Math.max(0,elapsed/v.moveDuration));
-    const ease=p<.5?2*p*p:1-Math.pow(-2*p+2,2)/2;
-    v.x=v.sx+(v.tx-v.sx)*ease;
-    v.y=v.sy+(v.ty-v.sy)*ease;
-    if(p>=1)startMove(v,true);
+    if(now>=v.nextTurn)randomizeVelocity(v);
+    v.x+=v.vx*dt;v.y+=v.vy*dt;
+    const minX=8,maxX=92,minY=10,maxY=82;
+    if(v.x<=minX){v.x=minX;v.vx=Math.abs(v.vx)}
+    if(v.x>=maxX){v.x=maxX;v.vx=-Math.abs(v.vx)}
+    if(v.y<=minY){v.y=minY;v.vy=Math.abs(v.vy)}
+    if(v.y>=maxY){v.y=maxY;v.vy=-Math.abs(v.vy)}
     renderViewer(v)
   }
-  saveState();
-  requestAnimationFrame(animate)
+  saveState();requestAnimationFrame(animate)
 }
 requestAnimationFrame(animate);
 window.addEventListener('pagehide',saveState);window.addEventListener('beforeunload',saveState);
