@@ -8,12 +8,12 @@
 html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
 .scene{position:relative;width:100%;height:100%}
 .person{position:absolute;left:50%;top:50%;width:220px;height:300px;transform:translate(-50%,-50%)}
-.head{position:absolute;left:60px;top:0;width:100px;height:100px;border-radius:50%;background:#ffd54f;border:5px solid #111}
-.body{position:absolute;left:75px;top:112px;width:70px;height:95px;border-radius:18px;background:#e53935;border:5px solid #111}
-.arm{position:absolute;top:120px;width:25px;height:95px;border-radius:14px;background:#ffd54f;border:5px solid #111}
+.head{position:absolute;left:60px;top:0;width:100px;height:100px;border-radius:50%;background:#00e5ff;border:5px solid #111}
+.body{position:absolute;left:75px;top:112px;width:70px;height:95px;border-radius:18px;background:#9c27b0;border:5px solid #111}
+.arm{position:absolute;top:120px;width:25px;height:95px;border-radius:14px;background:#00e5ff;border:5px solid #111}
 .arm.left{left:30px;transform:rotate(55deg)}
 .arm.right{right:30px;transform:rotate(-55deg)}
-.leg{position:absolute;top:202px;width:28px;height:95px;border-radius:14px;background:#1565c0;border:5px solid #111}
+.leg{position:absolute;top:202px;width:28px;height:95px;border-radius:14px;background:#00c853;border:5px solid #111}
 .leg.left{left:70px;transform:rotate(8deg)}
 .leg.right{right:70px;transform:rotate(-8deg)}
 .eye{position:absolute;top:34px;width:14px;height:22px;border-radius:50%;background:#111}
@@ -33,7 +33,7 @@ html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent
 </div>
 <script>
 // Проверяем GitHub Pages каждые 5 секунд. Если index.html изменился,
-// перезагружаем страницу только тогда, сохраняя состояние overlay между проверками.
+// обновляем страницу только после обнаружения новой версии.
 let currentVersion = null;
 async function checkForUpdate(){
   try{
@@ -46,9 +46,7 @@ async function checkForUpdate(){
     }else if(hash !== currentVersion){
       location.reload();
     }
-  }catch(e){
-    // Временная ошибка сети не влияет на уже отображаемый overlay.
-  }
+  }catch(e){}
 }
 checkForUpdate();
 setInterval(checkForUpdate, 5000);
