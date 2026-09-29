@@ -1,68 +1,16 @@
-<!doctype html>
-<html lang="ru">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JibiVidjet</title>
-<style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
-.scene{position:relative;width:100%;height:100%}
-.person{position:absolute;width:86px;height:116px;transform:translate(-50%,-50%);filter:drop-shadow(0 5px 7px rgba(0,0,0,.28));will-change:left,top}
-.avatar{position:relative;width:100%;height:100%}
-.aura{position:absolute;left:9px;top:3px;width:68px;height:68px;border-radius:50%;opacity:.22;filter:blur(2px)}
-.head{position:absolute;left:18px;top:10px;width:50px;height:50px;border-radius:45% 48% 44% 50%;border:3px solid #171717;box-sizing:border-box;z-index:2}
-.eye{position:absolute;width:7px;height:10px;border-radius:50%;background:#171717;top:19px}
-.eye.left{left:13px}.eye.right{right:13px}
-.body{position:absolute;left:23px;top:61px;width:40px;height:43px;border:3px solid #171717;border-radius:16px 16px 12px 12px;box-sizing:border-box;z-index:1}
-.arm{position:absolute;top:66px;width:12px;height:36px;border:3px solid #171717;border-radius:10px;box-sizing:border-box;z-index:0}
-.arm.left{left:12px;transform:rotate(25deg)}.arm.right{right:12px;transform:rotate(-25deg)}
-.leg{position:absolute;top:96px;width:12px;height:20px;border:3px solid #171717;border-radius:8px;box-sizing:border-box;z-index:0}
-.leg.left{left:28px;transform:rotate(6deg)}.leg.right{right:28px;transform:rotate(-6deg)}
-/* Five deliberately different abstract silhouettes. */
-.type1 .head{background:#ffd166}.type1 .body{background:#ef476f}.type1 .arm,.type1 .leg{background:#06d6a0}.type1 .aura{background:#ef476f}
-.type1 .head{border-radius:48% 42% 50% 44%}.type1 .eye{height:8px;width:6px}
-.type2 .head{background:#9b8cff;border-radius:42% 55% 48% 44%;transform:rotate(-5deg)}.type2 .body{background:#4361ee;border-radius:20px 20px 10px 18px}.type2 .arm,.type2 .leg{background:#f72585}.type2 .aura{background:#4361ee}
-.type2 .head:after{content:'';position:absolute;left:8px;top:-7px;width:30px;height:13px;border-radius:50%;background:#252525;transform:rotate(-7deg)}
-.type3 .head{background:#80ed99;border-radius:50% 45% 55% 42%}.type3 .body{background:#2ec4b6;border-radius:10px 22px 15px 20px}.type3 .arm,.type3 .leg{background:#ff9f1c}.type3 .aura{background:#2ec4b6}
-.type3 .eye{border-radius:2px;width:7px;height:7px;top:20px}
-.type4 .head{background:#ffcad4;border-radius:46% 46% 52% 48%}.type4 .body{background:#7209b7;border-radius:22px 12px 18px 12px}.type4 .arm,.type4 .leg{background:#f15bb5}.type4 .aura{background:#f15bb5}
-.type4 .head:after{content:'';position:absolute;left:2px;top:-8px;width:44px;height:17px;border-radius:50% 50% 20% 20%;background:#3a2b4a;transform:rotate(3deg)}
-.type5 .head{background:#bde0fe;border-radius:52% 44% 48% 50%}.type5 .body{background:#00b4d8;border-radius:13px 13px 22px 22px}.type5 .arm,.type5 .leg{background:#90be6d}.type5 .aura{background:#00b4d8}
-.type5 .eye{width:5px;height:5px;top:21px}
-.chat-layer{position:absolute;left:20px;right:20px;bottom:20px;display:flex;flex-direction:column;gap:8px;pointer-events:none}
-.chat-message{align-self:flex-start;max-width:70%;padding:8px 12px;border-radius:10px;background:rgba(0,0,0,.72);color:#fff;font:16px Arial,sans-serif;border:1px solid rgba(255,255,255,.2)}
-.chat-name{font-weight:700;margin-right:8px}
-</style>
-</head>
-<body>
-<div class="scene" id="scene"><div class="chat-layer" id="chatLayer"></div></div>
-<script>
-const STATE_KEY='JibiVidjet.state.v4';
-const defaultState={version:6,viewers:{},messages:[]};
-function loadState(){try{const keys=[STATE_KEY,'JibiVidjet.state.v3','JibiVidjet.state.v2','JibiVidjet.state.v1'];for(const key of keys){const saved=localStorage.getItem(key);if(saved){const p=JSON.parse(saved);return {...defaultState,...p,version:6,viewers:p.viewers||{},messages:Array.isArray(p.messages)?p.messages:[]}}}return structuredClone(defaultState)}catch(e){return structuredClone(defaultState)}}
+<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JibiVidjet</title><link rel="stylesheet" href="styles/main.css"></head><body><div class="scene" id="scene"><div class="ground"></div><div class="chat-layer" id="chatLayer"></div></div><script type="module">
+import {loadState,saveState} from './src/state.js';
+import {createViewer,moveViewers,randomizeVelocity} from './src/movement.js';
+import {renderViewer,renderViewers} from './src/viewers.js';
 let state=loadState();
-function saveState(){try{localStorage.setItem(STATE_KEY,JSON.stringify(state))}catch(e){}}
-function clamp(v,min,max){return Math.max(min,Math.min(max,Number(v)||0))}
-function randomRange(min,max){return min+Math.random()*(max-min)}
-function createViewer(id,name,x,y){state.viewers[id]={id,name,x:clamp(x,8,92),y:clamp(y,10,82),vx:randomRange(-7,7),vy:randomRange(-5,5),nextTurn:Date.now()+randomRange(700,2200),type:Math.floor(Math.random()*5)+1}}
 const initialViewers=[['viewer-1','Зритель 1',22,30],['viewer-2','Зритель 2',50,48],['viewer-3','Зритель 3',78,30],['viewer-4','Зритель 4',30,72],['viewer-5','Зритель 5',70,72]];
-for(const [id,name,x,y] of initialViewers){if(!state.viewers[id])createViewer(id,name,x,y);else if(!state.viewers[id].type)state.viewers[id].type=Math.floor(Math.random()*5)+1}
-function ensureViewerElement(v){let el=document.getElementById('viewer-'+v.id);if(el)return el;el=document.createElement('div');el.className='person type'+v.type;el.id='viewer-'+v.id;el.innerHTML='<div class="avatar"><div class="aura"></div><div class="head"><div class="eye left"></div><div class="eye right"></div></div><div class="body"></div><div class="arm left"></div><div class="arm right"></div><div class="leg left"></div><div class="leg right"></div></div>';document.getElementById('scene').appendChild(el);return el}
-function renderViewer(v){const el=ensureViewerElement(v);el.style.left=v.x+'%';el.style.top=v.y+'%'}
-function renderViewers(){Object.values(state.viewers).forEach(renderViewer)}
-function addChatMessage(user,text){state.messages.push({id:crypto.randomUUID(),user:String(user),text:String(text),createdAt:Date.now()});if(state.messages.length>20)state.messages.shift();saveState();renderMessages()}
+for(const [id,name,x,y] of initialViewers){if(!state.viewers[id])state.viewers[id]=createViewer(id,name,x,y);else if(!state.viewers[id].type)state.viewers[id].type=Math.floor(Math.random()*5)+1}
+function addChatMessage(user,text){state.messages.push({id:crypto.randomUUID(),user:String(user),text:String(text),createdAt:Date.now()});if(state.messages.length>20)state.messages.shift();saveState(state);renderMessages()}
 function renderMessages(){const layer=document.getElementById('chatLayer');layer.replaceChildren();for(const m of state.messages){const row=document.createElement('div');row.className='chat-message';const name=document.createElement('span');name.className='chat-name';name.textContent=m.user+':';const text=document.createElement('span');text.textContent=m.text;row.append(name,text);layer.appendChild(row)}}
 if(state.messages.length===0){addChatMessage('Jibi','Тестовое сообщение из чата');addChatMessage('Зритель','Проверяем сохранение состояния')}
-function randomizeVelocity(v){const speed=randomRange(4,11),angle=Math.random()*Math.PI*2;v.vx=Math.cos(angle)*speed;v.vy=Math.sin(angle)*speed;v.nextTurn=Date.now()+randomRange(700,2600)}
 for(const v of Object.values(state.viewers)){if(!Number.isFinite(v.vx)||!Number.isFinite(v.vy)||!Number.isFinite(v.nextTurn))randomizeVelocity(v)}
-renderViewers();renderMessages();
+renderViewers(state.viewers);renderMessages();
 let last=Date.now(),lastSave=0;
-function animate(){const now=Date.now(),dt=Math.min(.05,(now-last)/1000);last=now;for(const v of Object.values(state.viewers)){if(now>=v.nextTurn)randomizeVelocity(v);v.x+=v.vx*dt;v.y+=v.vy*dt;const minX=8,maxX=92,minY=10,maxY=82;if(v.x<=minX){v.x=minX;v.vx=Math.abs(v.vx)}if(v.x>=maxX){v.x=maxX;v.vx=-Math.abs(v.vx)}if(v.y<=minY){v.y=minY;v.vy=Math.abs(v.vy)}if(v.y>=maxY){v.y=maxY;v.vy=-Math.abs(v.vy)}renderViewer(v)}if(now-lastSave>250){saveState();lastSave=now}requestAnimationFrame(animate)}
-requestAnimationFrame(animate);window.addEventListener('pagehide',saveState);window.addEventListener('beforeunload',saveState);
-window.JibiVidjet={addChatMessage,getState:()=>JSON.parse(JSON.stringify(state))};
-let currentVersion=null;
-async function checkForUpdate(){try{const r=await fetch('index.html?check='+Date.now(),{cache:'no-store'});const text=await r.text();const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));const hash=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');if(currentVersion===null)currentVersion=hash;else if(hash!==currentVersion){saveState();location.reload()}}catch(e){}}
-checkForUpdate();setInterval(checkForUpdate,5000);
-</script>
-</body>
-</html>
+function animate(){const now=Date.now(),dt=Math.min(.05,(now-last)/1000);last=now;moveViewers(state.viewers,dt,now);for(const v of Object.values(state.viewers))renderViewer(v);if(now-lastSave>250){saveState(state);lastSave=now}requestAnimationFrame(animate)}requestAnimationFrame(animate);window.addEventListener('pagehide',()=>saveState(state));window.addEventListener('beforeunload',()=>saveState(state));window.JibiVidjet={addChatMessage,getState:()=>JSON.parse(JSON.stringify(state))};
+let currentVersion=null;async function checkForUpdate(){try{const r=await fetch('index.html?check='+Date.now(),{cache:'no-store'});const text=await r.text();const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));const hash=Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,'0')).join('');if(currentVersion===null)currentVersion=hash;else if(hash!==currentVersion){saveState(state);location.reload()}}catch(e){}}checkForUpdate();setInterval(checkForUpdate,5000);
+</script></body></html>
