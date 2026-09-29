@@ -1,1 +1,33 @@
-
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JibiVidjet</title>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:transparent}
+.scene{position:relative;width:100%;height:100%}
+.person{position:absolute;left:50%;top:50%;width:120px;height:220px;transform:translate(-50%,-50%)}
+.head{position:absolute;left:30px;top:0;width:60px;height:60px;border-radius:50%;background:#f2c7a5;border:3px solid #222}
+.body{position:absolute;left:40px;top:66px;width:40px;height:70px;border-radius:12px;background:#4b7bec;border:3px solid #222}
+.arm{position:absolute;top:72px;width:18px;height:65px;border-radius:10px;background:#f2c7a5;border:3px solid #222}
+.arm.left{left:14px;transform:rotate(18deg)}
+.arm.right{right:14px;transform:rotate(-18deg)}
+.leg{position:absolute;top:136px;width:18px;height:78px;border-radius:10px;background:#333;border:3px solid #222}
+.leg.left{left:38px;transform:rotate(3deg)}
+.leg.right{right:38px;transform:rotate(-3deg)}
+</style>
+</head>
+<body>
+<div class="scene">
+  <div class="person">
+    <div class="head"></div>
+    <div class="body"></div>
+    <div class="arm left"></div>
+    <div class="arm right"></div>
+    <div class="leg left"></div>
+    <div class="leg right"></div>
+  </div>
+</div>
+</body>
+</html>
